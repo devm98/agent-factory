@@ -2,5 +2,7 @@
   "name": "factory-view",
   "version": "0.1.0",
   "description": "A little office beside the chat: Claude manages at the gilded desk, every subagent works at a desk of its own.",
+  "author": { "name": "devm98" },
+  "license": "MIT",
   "types": "./types/index.d.ts"
 }

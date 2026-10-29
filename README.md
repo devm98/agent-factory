@@ -8,3 +8,35 @@ Claude, the main agent, is the manager at the gilded desk in the middle of the f
 - Terminal: the mascots are drawn in half-block pixels (fullscreen layout docks the pane).
 - `/factory` opens or closes the pane. Press an agent's name to open its transcript.
 - Up to 8 agents get full desks, up to 24 compact desks, and beyond that agents are grouped into rooms with counts.
+
+## Install
+
+At the prompt of a Claude Code terminal session:
+
+```
+/plugin install factory-view --marketplace devm98/agent-factory
+```
+
+Answer `y` to add the marketplace, then press Enter to pick the user scope. The mod is active right away, and in every session you start after.
+
+From a shell:
+
+```
+claude plugin install factory-view --marketplace devm98/agent-factory
+```
+
+In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `devm98/agent-factory`, then Add plugin.
+
+## Develop
+
+Run Claude Code with the mod loaded from this folder:
+
+```
+claude --plugin-dir .
+```
+
+Check and test it with `claude plugin validate .` and `claude plugin test .`.
+
+## License
+
+MIT. Factory View is a fan-made mod and is not affiliated with Anthropic.

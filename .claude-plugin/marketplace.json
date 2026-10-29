@@ -1,0 +1,5 @@
+{
+  "name": "agent-factory",
+  "owner": { "name": "devm98" },
+  "plugins": [{ "name": "factory-view", "source": "./" }]
+}
