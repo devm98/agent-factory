@@ -163,7 +163,7 @@ export const register: Register = on => {
       $.ui.view(agentId === MANAGER_ID ? {} : { agentId })
 
     if (e.surface === 'terminal') return terminalTree($.ui.resolve(e), current, frame, onView)
-    if (e.surface === 'desktop') return desktopTree($.ui.resolve(e), current, onView)
+    if (e.surface === 'desktop') return desktopTree($.ui.resolve(e), current, e.props.bodyColumns, onView)
 
     const { Box, Text } = $.ui.resolve(e)
 

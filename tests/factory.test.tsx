@@ -12,7 +12,7 @@ import {
   toolStart,
   turnEnd,
 } from '../hooks/model'
-import { desktopSvg } from '../hooks/scene'
+import { desktopSvg } from '../hooks/office-svg'
 import { RASTER_COLUMNS, RASTER_ROWS, sprite, toRasterCells } from '../hooks/sprites'
 
 const EXPLORE = { agentId: 'a1', description: 'scan auth', agentType: 'Explore', model: 'claude-haiku-5-5', isResident: false }
