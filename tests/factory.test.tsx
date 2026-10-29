@@ -5,6 +5,7 @@ import {
   emptyOffice,
   byAttention,
   layoutTier,
+  signature,
   spawn,
   tick,
   TIMING,
@@ -13,7 +14,7 @@ import {
   toolStart,
   turnEnd,
 } from '../hooks/model'
-import { desktopSvg } from '../hooks/office-svg'
+import { desktopSvg, syncAnimations } from '../hooks/office-svg'
 import { dress, findTarget, previewLook, resolveLook } from '../hooks/wardrobe'
 import { RASTER_COLUMNS, RASTER_ROWS, sprite, toRasterCells } from '../hooks/sprites'
 
@@ -140,6 +141,21 @@ describe('the wardrobe', () => {
 })
 
 describe('drawing', () => {
+  test('only a visible change makes a new drawing', async () => {
+    let office = spawn(emptyOffice(0), EXPLORE, 0)
+    office = toolStart(office, 'a1', 'Grep', 'auth', 10)
+    const before = signature(office)
+    expect(signature({ ...office, desks: office.desks.map(desk => ({ ...desk, lastEventAt: 99, toolCalls: 7 })) })).toBe(before)
+    expect(signature(toolEnd(office, 'a1', false, 20))).not.toBe(before)
+  })
+
+  test('looping animations carry on from where the clock is', async () => {
+    const svg = '<animate attributeName="y" dur="2s" begin="1s" repeatCount="indefinite"/><animate dur="3s"/>'
+    expect(syncAnimations(svg, 5500)).toBe(
+      '<animate attributeName="y" dur="2s" repeatCount="indefinite" begin="-0.500s"/><animate dur="3s"/>',
+    )
+  })
+
   test('a mascot fills a raster exactly', async () => {
     const cells = toRasterCells(sprite('working', { head: 'beanie', face: 'shades', neck: 'scarf', hand: 'coffee' }, 1))
     expect(cells.length).toBe((RASTER_COLUMNS * RASTER_ROWS * 12 * 4) / 3)

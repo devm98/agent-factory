@@ -173,7 +173,7 @@ function badge(desk: Desk, x: number, y: number): string {
   return ''
 }
 
-function monitor(desk: Desk | undefined, x: number, y: number, w: number, h: number): string {
+function monitor(desk: Desk | undefined, x: number, y: number, w: number, h: number, isAnimated = true): string {
   let out = r(x + w / 2 - 2, y + h, 4, 4, '#444441') + r(x + w / 2 - 7, y + h + 3, 14, 2, '#444441')
   out += r(x, y, w, h, '#444441', ' rx="2"')
   const status = desk?.status
@@ -181,7 +181,9 @@ function monitor(desk: Desk | undefined, x: number, y: number, w: number, h: num
   out += r(x + 2, y + 2, w - 4, h - 4, screen)
   if (desk === undefined) return out
 
-  if (status === 'working') {
+  if (status === 'working' && !isAnimated) {
+    out += r(x + 4, y + 5, (w - 8) * 0.7, 1.5, '#5DCAA5') + r(x + 4, y + 9, (w - 8) * 0.5, 1.5, '#EF9F27')
+  } else if (status === 'working') {
     const id = `m${desk.agentId.replace(/[^a-zA-Z0-9]/g, '')}`
     out += `<clipPath id="${id}">${r(x + 2, y + 2, w - 4, h - 4, '#000')}</clipPath><g clip-path="url(#${id})"><g>`
     for (let line = 0; line < 10; line++) {
@@ -307,11 +309,11 @@ function deskSvg(desk: Desk | undefined, cx: number, y: number, look: DeskLook, 
     out += mascot(desk, spriteX, top, s, look.isAnimated)
     out += badge(desk, spriteX + 15 * s, top + s)
   }
-  out += monitor(desk, cx + 4 * s, deskTop - 8 * s, 9 * s, 6 * s)
+  out += monitor(desk, cx + 4 * s, deskTop - 8 * s, 9 * s, 6 * s, look.isAnimated)
   const left = cx - cell / 2 + 8
   out += r(left, deskTop, cell - 16, 8 * s, '#B98A5E', ' rx="2"') + r(left, deskTop, cell - 16, 2 * s / 2 + 1, '#D2A77C')
   out += r(left + 4, deskTop + 8 * s, 4, 2 * s, '#7A5634') + r(left + cell - 28, deskTop + 8 * s, 4, 2 * s, '#7A5634')
-  if (desk !== undefined) out += deskItem(desk.look.desk, left + 3 * s, deskTop + 1, s)
+  if (desk !== undefined && look.isAnimated) out += deskItem(desk.look.desk, left + 3 * s, deskTop + 1, s)
 
   const labelY = deskTop + 10 * s + 12
   if (desk === undefined) {
@@ -425,6 +427,7 @@ export function desktopSvg(office: Office, now: number = Date.now()): string {
   const height = loungeY + 108
 
   return (
+    syncAnimations(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW_WIDTH} ${height}" width="${VIEW_WIDTH}" height="${height}">` +
     floor(height) +
     wall() +
@@ -432,8 +435,28 @@ export function desktopSvg(office: Office, now: number = Date.now()): string {
     manager(office, managerY, now) +
     body +
     lounge(office, loungeY) +
-    `</svg>`
+    `</svg>`,
+    now,
+    )
   )
+}
+
+// A new drawing reloads the frame and every animation would start over:
+// each looping one starts as far back as the clock says, so it carries on.
+export function syncAnimations(svg: string, now: number): string {
+  const seconds = now / 1000
+
+  return svg.replace(/<(animateTransform|animate)\b([^>]*?)(\/?)>/g, (whole, tag: string, attrs: string, close: string) => {
+    if (!attrs.includes('repeatCount="indefinite"')) return whole
+    const dur = /\bdur="([\d.]+)s"/.exec(attrs)
+    if (dur === null) return whole
+    const period = Number(dur[1])
+    const begin = /\bbegin="(-?[\d.]+)s"/.exec(attrs)
+    const start = (begin === null ? 0 : Number(begin[1])) - (seconds % period)
+    const rest = attrs.replace(/\s*\bbegin="[^"]*"/, '')
+
+    return `<${tag}${rest} begin="${start.toFixed(3)}s"${close}>`
+  })
 }
 
 export function desktopHeight(svg: string): number {

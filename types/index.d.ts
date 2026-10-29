@@ -58,6 +58,7 @@ declare module 'claude-code' {
   interface PluginState {
     'factory-view': {
       office: Shaped<Office>
+      view: Shaped<Office>
       styles: Shaped<Styles>
       wardrobe: Shaped<WardrobePanel>
     }

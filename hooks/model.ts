@@ -303,3 +303,19 @@ export function byAttention(desks: readonly Desk[]): Desk[] {
 export function waitingCount(office: Office): number {
   return counts(office.desks).waiting + (office.manager.status === 'waiting' ? 1 : 0)
 }
+
+// What the office looks like, leaving out what only the model counts (when an
+// event came, how many calls): two offices that draw the same share it.
+export function signature(office: Office): string {
+  const seen = (desk: Desk) => [
+    desk.agentId,
+    desk.name,
+    desk.model,
+    desk.slot,
+    desk.status,
+    desk.status === 'working' || desk.status === 'waiting' || desk.status === 'error' ? desk.tool : undefined,
+    desk.look,
+  ]
+
+  return JSON.stringify([seen(office.manager), office.desks.map(seen), office.breakRoom, office.completed])
+}

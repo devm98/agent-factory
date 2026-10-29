@@ -14,6 +14,7 @@ import {
   toolStart,
   turnEnd,
   turnStart,
+  signature,
   waitingCount,
 } from './model'
 import { ANIMATED, desktopTree, rasterKey, terminalTree } from './scene'
@@ -37,6 +38,9 @@ const STORE_KEY = 'styles'
 // Change a tag when its value's fields change: it declines what an earlier
 // version stored, which outlives a reload.
 const office = atom({ plugin: 'factory-view', key: 'office' } as const, emptyOffice(0), {
+  shape: 'office-2',
+})
+const view = atom({ plugin: 'factory-view', key: 'view' } as const, emptyOffice(0), {
   shape: 'office-2',
 })
 const styles = atom({ plugin: 'factory-view', key: 'styles' } as const, {} as Styles, {
@@ -66,6 +70,40 @@ async function quietly(work: () => Promise<unknown>) {
   }
 }
 
+// The pane draws from `view`, a copy of the office taken at most about once a
+// second and only when something visible changed: every new drawing reloads
+// the desktop's frame, so fewer of them is a steadier office.
+const REDRAW_MS = 1000
+let shownSignature = ''
+let lastFlushAt = 0
+let isFlushPending = false
+
+async function flush($: EngineInterface) {
+  isFlushPending = false
+  const current = await read($, office)
+  const next = signature(current)
+  if (next === shownSignature) return
+  shownSignature = next
+  lastFlushAt = Date.now()
+  await update($, view, () => current)
+}
+
+function scheduleFlush($: EngineInterface) {
+  if (isFlushPending) return
+  const wait = lastFlushAt + REDRAW_MS - Date.now()
+  if (wait <= 0) {
+    void quietly(() => flush($))
+    return
+  }
+  isFlushPending = true
+  $.clock.after(wait, () => void quietly(() => flush($)))
+}
+
+async function change($: EngineInterface, fn: (value: Office) => Office) {
+  await update($, office, fn)
+  scheduleFlush($)
+}
+
 async function isPaneOpen($: EngineInterface): Promise<boolean> {
   return (await $.ui.panes()).some(pane => pane.id === PANE)
 }
@@ -84,11 +122,12 @@ async function applyDress($: EngineInterface, targetWord: string, item: string):
   const kept = await read($, styles)
   const target = findTarget(targetWord, await read($, office))
   let nextStyles = kept
-  await update($, office, value => {
+  await change($, value => {
     const dressed = dress(value, kept, target, item)
     nextStyles = dressed.styles
     return dressed.office
   })
+  await flush($)
   if (nextStyles !== kept) {
     await update($, styles, () => nextStyles)
     await $.store.set(STORE_KEY, nextStyles)
@@ -119,7 +158,7 @@ export const register: Register = on => {
       if (saved === null || typeof saved !== 'object') return
       const kept = saved as Styles
       await update($, styles, () => kept)
-      await update($, office, value => ({
+      await change($, value => ({
         ...value,
         manager: { ...value.manager, look: resolveLook(MANAGER_TYPE, kept) },
       }))
@@ -146,6 +185,7 @@ export const register: Register = on => {
         const now = Date.now()
         const current = await read($, office)
         if (tick(current, now) !== current) await update($, office, value => tick(value, now))
+        await flush($)
         await refreshTitle($)
       })
     })
@@ -194,7 +234,7 @@ export const register: Register = on => {
 
     await quietly(async () => {
       const look = resolveLook(e.subagentType, await read($, styles))
-      await update($, office, value =>
+      await change($, value =>
         spawn(
           value,
           {
@@ -222,25 +262,25 @@ export const register: Register = on => {
   })
 
   on('turn.start', async ($, e, next) => {
-    await quietly(() => update($, office, value => turnStart(value, e.agentId, Date.now())))
+    await quietly(() => change($, value => turnStart(value, e.agentId, Date.now())))
 
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
     const ended = await next(e)
-    await quietly(() => update($, office, value => turnEnd(value, e.agentId, e.reason, Date.now())))
+    await quietly(() => change($, value => turnEnd(value, e.agentId, e.reason, Date.now())))
 
     return ended
   })
 
   on('tool.call', async ($, e, next) => {
     const arg = toolArg(e as unknown as Record<string, unknown>)
-    await quietly(() => update($, office, value => toolStart(value, e.agentId, e.tool, arg, Date.now())))
+    await quietly(() => change($, value => toolStart(value, e.agentId, e.tool, arg, Date.now())))
     const ran = await next(e)
     const isError = 'isError' in ran && ran.isError === true
     await quietly(async () => {
-      await update($, office, value => toolEnd(value, e.agentId, isError, Date.now()))
+      await change($, value => toolEnd(value, e.agentId, isError, Date.now()))
       if (shownWaiting > 0) await refreshTitle($)
     })
 
@@ -253,12 +293,13 @@ export const register: Register = on => {
     if (verdict.decision === 'ask' && e.tool_use_id !== undefined && e.approver !== undefined) {
       await quietly(async () => {
         let newlyWaiting: string | undefined
-        await update($, office, value => {
+        await change($, value => {
           const before = e.agentId === undefined ? value.manager : value.desks.find(desk => desk.agentId === e.agentId)
           const after = askStart(value, e.agentId, Date.now())
           newlyWaiting = before !== undefined && before.status !== 'waiting' ? before.name : undefined
           return after
         })
+        await flush($)
         if (newlyWaiting !== undefined) {
           const who = e.agentId === undefined ? 'Claude' : newlyWaiting
           $.ui.toast(`${who} đang chờ bạn duyệt ${e.tool}`, { timeoutMs: 8000 })
@@ -271,7 +312,7 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const current = await read($, office)
+    const current = await read($, view)
     drawn = current
     drawnOn = e.surface
     const onView = (agentId: string) => () =>
