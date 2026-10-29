@@ -129,7 +129,7 @@ function bubble(desk: Desk, cx: number, y: number, maxWidth: number, size: numbe
 
 function mascot(desk: Desk, x: number, y: number, s: number, isAnimated: boolean): string {
   if (!isAnimated || !ANIMATED.includes(desk.status)) {
-    const still = toSvg(sprite(desk.status, desk.outfit, 0), x, y, s)
+    const still = toSvg(sprite(desk.status, desk.look, 0), x, y, s)
     if (desk.status === 'done') {
       return `<g>${still}<animateTransform attributeName="transform" type="translate" values="0 0;0 -${s * 1.5};0 0" dur="0.7s" repeatCount="indefinite"/></g>`
     }
@@ -141,7 +141,7 @@ function mascot(desk: Desk, x: number, y: number, s: number, isAnimated: boolean
   return [0, 1]
     .map(
       frame =>
-        `<g opacity="${frame === 0 ? 1 : 0}">${toSvg(sprite(desk.status, desk.outfit, frame), x, y, s)}` +
+        `<g opacity="${frame === 0 ? 1 : 0}">${toSvg(sprite(desk.status, desk.look, frame), x, y, s)}` +
         `<animate attributeName="opacity" values="${frame === 0 ? '1;0' : '0;1'}" dur="${period}s" calcMode="discrete" repeatCount="indefinite"/></g>`,
     )
     .join('')
@@ -205,6 +205,81 @@ function monitor(desk: Desk | undefined, x: number, y: number, w: number, h: num
   return out
 }
 
+// The item a look keeps on the desk, standing on the desk top at baseY.
+function deskItem(item: string | undefined, x: number, baseY: number, s: number): string {
+  const u = s / 2
+  if (item === 'cat') {
+    let out = r(x, baseY - 5 * u, 7 * u, 5 * u, '#888780', ` rx="${u}"`)
+    out += r(x + 4 * u, baseY - 9 * u, 5 * u, 5 * u, '#888780', ` rx="${u}"`)
+    out += `<path d="M${x + 4 * u} ${baseY - 9 * u} l${u} ${-2 * u} l${u} ${2 * u} z M${x + 7 * u} ${baseY - 9 * u} l${u} ${-2 * u} l${u} ${2 * u} z" fill="#888780"/>`
+    out += r(x + 5 * u, baseY - 7 * u, u, u, '#2C2C2A') + r(x + 7 * u, baseY - 7 * u, u, u, '#2C2C2A')
+    out += `<path d="M${x} ${baseY - 2 * u} q${-3 * u} ${-2 * u} ${-2 * u} ${-6 * u}" stroke="#888780" stroke-width="${u}" fill="none"><animateTransform attributeName="transform" type="rotate" values="0 ${x} ${baseY - 2 * u};-14 ${x} ${baseY - 2 * u};0 ${x} ${baseY - 2 * u}" dur="2.4s" repeatCount="indefinite"/></path>`
+    return out
+  }
+  if (item === 'cactus') {
+    return (
+      r(x + 2 * u, baseY - 11 * u, 3 * u, 8 * u, '#639922', ` rx="${u}"`) +
+      r(x, baseY - 8 * u, 2 * u, 3 * u, '#639922', ` rx="${u / 2}"`) +
+      r(x + 5 * u, baseY - 9 * u, 2 * u, 3 * u, '#639922', ` rx="${u / 2}"`) +
+      r(x, baseY - 3 * u, 7 * u, 3 * u, '#B5543A')
+    )
+  }
+  if (item === 'photo') {
+    return (
+      r(x, baseY - 8 * u, 8 * u, 7 * u, '#7A5634') +
+      r(x + u, baseY - 7 * u, 6 * u, 5 * u, '#B5D4F4') +
+      `<circle cx="${x + 4 * u}" cy="${baseY - 4.5 * u}" r="${1.5 * u}" fill="#D97757"/>` +
+      r(x + 3 * u, baseY - u, 2 * u, u, '#7A5634')
+    )
+  }
+
+  return ''
+}
+
+function minutes(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000))
+  const m = Math.floor(total / 60)
+
+  return m > 0 ? `${m} phút ${total % 60} giây` : `${total} giây`
+}
+
+const STATUS_LABEL: Record<Status, string> = {
+  arriving: 'Đang tới bàn',
+  working: 'Đang làm',
+  thinking: 'Đang nghĩ',
+  waiting: 'Chờ bạn duyệt',
+  error: 'Gặp lỗi',
+  done: 'Đã xong',
+  delivering: 'Đang nộp báo cáo',
+  idle: 'Rảnh',
+  sleep: 'Đang ngủ',
+}
+
+// What a hover over the desk tells: who, what for, and how far along.
+function tooltip(desk: Desk, now: number): string {
+  const lines = [
+    `${desk.name} — ${desk.agentType}${desk.model ? ' · ' + desk.model : ''}`,
+    desk.task ? `Việc: ${desk.task}` : '',
+    `${STATUS_LABEL[desk.status]}${desk.tool && desk.status === 'working' ? ': ' + desk.tool.name + (desk.tool.arg ? ' ' + desk.tool.arg : '') : ''}`,
+    `Đã chạy ${minutes(now - desk.startedAt)} · ${desk.toolCalls} lần gọi tool`,
+  ].filter(line => line !== '')
+
+  return `<title>${lines.map(escape).join('&#10;')}</title>`
+}
+
+function bell(x: number, y: number, waiting: number): string {
+  let out = `<g><path d="M${x - 9} ${y} q0 -14 9 -14 q9 0 9 14 z" fill="#EFA027" stroke="#BA7517"/>` + r(x - 11, y, 22, 3, '#BA7517', ' rx="1"')
+  out += `<circle cx="${x}" cy="${y + 4}" r="2.5" fill="#BA7517"/>`
+  if (waiting > 0) {
+    out += `<animateTransform attributeName="transform" type="rotate" values="0 ${x} ${y - 14};-16 ${x} ${y - 14};14 ${x} ${y - 14};0 ${x} ${y - 14}" dur="0.5s" repeatCount="indefinite"/></g>`
+    out += `<circle cx="${x + 11}" cy="${y - 14}" r="8" fill="#E24B4A"/>` + text(x + 11, y - 10, 10, '#FFFFFF', String(waiting), ' text-anchor="middle" font-weight="700"')
+  } else {
+    out += '</g>'
+  }
+
+  return out
+}
+
 function chair(x: number, y: number, s: number): string {
   return r(x, y, 10 * s, 11 * s, '#5F5E5A', ` rx="${2 * s}"`) + r(x + s, y + s, 8 * s, 4 * s, '#6E6D68', ` rx="${s}"`)
 }
@@ -221,7 +296,7 @@ function rowHeight(look: DeskLook): number {
 }
 
 // One desk with its top at y; `desk` undefined draws an empty one.
-function deskSvg(desk: Desk | undefined, cx: number, y: number, look: DeskLook): string {
+function deskSvg(desk: Desk | undefined, cx: number, y: number, look: DeskLook, now: number): string {
   const { s, cell, font } = look
   const top = y + font + 18
   const spriteX = cx - 13 * s
@@ -236,6 +311,7 @@ function deskSvg(desk: Desk | undefined, cx: number, y: number, look: DeskLook):
   const left = cx - cell / 2 + 8
   out += r(left, deskTop, cell - 16, 8 * s, '#B98A5E', ' rx="2"') + r(left, deskTop, cell - 16, 2 * s / 2 + 1, '#D2A77C')
   out += r(left + 4, deskTop + 8 * s, 4, 2 * s, '#7A5634') + r(left + cell - 28, deskTop + 8 * s, 4, 2 * s, '#7A5634')
+  if (desk !== undefined) out += deskItem(desk.look.desk, left + 3 * s, deskTop + 1, s)
 
   const labelY = deskTop + 10 * s + 12
   if (desk === undefined) {
@@ -248,10 +324,10 @@ function deskSvg(desk: Desk | undefined, cx: number, y: number, look: DeskLook):
     }
   }
 
-  return out
+  return desk === undefined ? out : `<g>${tooltip(desk, now)}${out}</g>`
 }
 
-function manager(office: Office, y: number): string {
+function manager(office: Office, y: number, now: number): string {
   const desk = office.manager
   const s = 6
   const cx = VIEW_WIDTH / 2
@@ -269,8 +345,10 @@ function manager(office: Office, y: number): string {
   out += r(cx - 120, deskTop, 240, 7, '#F5CF6E', ' rx="3"')
   out += r(cx - 70, deskTop + 18, 140, 20, '#2C2C2A', ' rx="3"')
   out += text(cx, deskTop + 32, 11, '#EFA027', 'CLAUDE · MANAGER', ' text-anchor="middle" font-weight="600" letter-spacing="1"')
+  out += deskItem(desk.look.desk, cx + 102, deskTop + 1, 4)
+  out += bell(cx - 88, deskTop - 1, counts(office.desks).waiting + (desk.status === 'waiting' ? 1 : 0))
 
-  return out
+  return `<g>${tooltip(desk, now)}${out}</g>`
 }
 
 function room(name: string, desks: Desk[], x: number, y: number, w: number, h: number): string {
@@ -293,7 +371,7 @@ function lounge(office: Office, y: number): string {
   out += r(32, y + 22, 230, 34, '#7F77DD', ' rx="8"')
   const seated = Math.min(office.breakRoom, 5)
   for (let i = 0; i < seated; i++) {
-    out += toSvg(sprite('idle', 'none', 0), 44 + i * 42, y + 26, 2)
+    out += toSvg(sprite('idle', {}, 0), 44 + i * 42, y + 26, 2)
   }
   out += r(32, y + 48, 230, 26, '#534AB7', ' rx="6"') + r(24, y + 36, 16, 40, '#534AB7', ' rx="6"') + r(254, y + 36, 16, 40, '#534AB7', ' rx="6"')
   if (office.breakRoom > seated) {
@@ -312,7 +390,7 @@ function lounge(office: Office, y: number): string {
   return out
 }
 
-export function desktopSvg(office: Office): string {
+export function desktopSvg(office: Office, now: number = Date.now()): string {
   const tier = layoutTier(office.desks.length)
   const managerY = WALL + 8
   const top = managerY + 150
@@ -338,7 +416,7 @@ export function desktopSvg(office: Office): string {
     const height = rowHeight(look)
     for (let slot = 0; slot < slots; slot++) {
       const cx = look.cell * (slot % columns) + look.cell / 2
-      body += deskSvg(bySlot.get(slot), cx, top + Math.floor(slot / columns) * height, look)
+      body += deskSvg(bySlot.get(slot), cx, top + Math.floor(slot / columns) * height, look, now)
     }
     bottom = top + (slots / columns) * height
   }
@@ -351,7 +429,7 @@ export function desktopSvg(office: Office): string {
     floor(height) +
     wall() +
     plant(VIEW_WIDTH - 60, managerY + 110, office.completed) +
-    manager(office, managerY) +
+    manager(office, managerY, now) +
     body +
     lounge(office, loungeY) +
     `</svg>`

@@ -1,10 +1,11 @@
 import type { Elements } from 'claude-code'
 
-import type { Desk, Office } from '../types'
-import { bubbleText, counts, groups, layoutTier, MANAGER_ID } from './model'
+import type { Desk, Look, Office, Styles, WardrobePanel } from '../types'
+import { bubbleText, byAttention, counts, groups, layoutTier, MANAGER_ID } from './model'
 import type { Counts } from './model'
-import { desktopSvg, fit, STATUS_STYLE } from './office-svg'
-import { RASTER_COLUMNS, RASTER_ROWS, sprite, toRasterCells } from './sprites'
+import { desktopHeight, desktopSvg, fit, STATUS_STYLE, VIEW_WIDTH } from './office-svg'
+import { RASTER_COLUMNS, RASTER_ROWS, sprite, toRasterCells, toSvg } from './sprites'
+import { itemOptions, previewLook, targetOptions } from './wardrobe'
 
 export { ANIMATED } from './office-svg'
 
@@ -61,7 +62,7 @@ export function terminalTree(
         key={rasterKey(desk)}
         columns={RASTER_COLUMNS}
         rows={RASTER_ROWS}
-        cells={toRasterCells(sprite(desk.status, desk.outfit, frame))}
+        cells={toRasterCells(sprite(desk.status, desk.look, frame))}
       />
       <Button key={desk.agentId} plain onPress={onView(desk.agentId)}>
         {fit(desk.name, RASTER_COLUMNS - 4)} <Text dimColor>{isManager ? 'boss' : desk.model}</Text>
@@ -85,7 +86,7 @@ export function terminalTree(
       </Box>
     )
   } else if (tier === 'compact') {
-    const bySlot = [...office.desks].sort((a, b) => a.slot - b.slot)
+    const bySlot = byAttention(office.desks)
     floor = <Box flexDirection="column">{bySlot.map(row)}</Box>
   } else {
     floor = (
@@ -126,17 +127,40 @@ export function terminalTree(
   )
 }
 
+export type WardrobeUi = {
+  panel: WardrobePanel
+  styles: Styles
+  toggle: () => unknown
+  pickTarget: (value: string) => unknown
+  pickItem: (value: string) => unknown
+  wear: () => unknown
+}
+
+function lookPreview(look: Look): string {
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 18 14" width="96" height="72" shape-rendering="crispEdges">` +
+    `<rect x="-1" y="-1" width="18" height="14" rx="2" fill="#EFE6D8"/>` +
+    toSvg(sprite('idle', look, 0), 0, 0, 1) +
+    `</svg>`
+  )
+}
+
 export function desktopTree(
   els: Elements['desktop'],
   office: Office,
   columns: number,
   onView: View,
+  ui: WardrobeUi,
 ) {
-  const { Box, Text, Button, Svg } = els
-  const named = [office.manager, ...[...office.desks].sort((a, b) => a.slot - b.slot)]
-  // The pane gives its width in columns; the office scales to fill it.
-  const width = Math.round(Math.min(Math.max(columns * 8, 320), 960))
+  const { Box, Text, Button, Svg, Select } = els
+  const named = [office.manager, ...byAttention(office.desks)]
+  // The pane gives its width in columns, not pixels. The interactive frame
+  // keeps a default height unless told one, so both sides are set from it.
+  const width = Math.round(Math.min(Math.max(columns * 7.5, 280), 1200))
+  const svg = desktopSvg(office)
+  const height = Math.round((width * desktopHeight(svg)) / VIEW_WIDTH)
   const isQuiet = office.desks.length === 0
+  const { panel } = ui
 
   return (
     <Box flexDirection="column" gap="sm">
@@ -154,9 +178,10 @@ export function desktopTree(
         )}
       </Box>
       <Svg
-        source={desktopSvg(office)}
+        source={svg}
         alt={`Văn phòng: manager và ${office.desks.length} subagent. ${summary(office)}`}
         width={width}
+        height={height}
         isInteractive
       />
       <Box flexDirection="row" flexWrap="wrap" columnGap="sm" rowGap="xs">
@@ -164,10 +189,49 @@ export function desktopTree(
           <Button key={desk.agentId} plain onPress={onView(desk.agentId)}>
             <Text color={STATUS_STYLE[desk.status].ink}>●</Text>{' '}
             {desk.agentId === MANAGER_ID ? 'claude' : desk.name}{' '}
-            <Text dimColor>{desk.agentId === MANAGER_ID ? 'manager' : desk.model}</Text>
+            <Text dimColor>{desk.status === 'waiting' ? 'chờ bạn' : desk.agentId === MANAGER_ID ? 'manager' : desk.model}</Text>
           </Button>
         ))}
+        <Button key="wardrobe-toggle" onPress={ui.toggle}>
+          {panel.isOpen ? 'Đóng tủ đồ' : 'Tủ đồ'}
+        </Button>
       </Box>
+      {panel.isOpen && (
+        <Box flexDirection="column" gap="sm" borderStyle="round" padding="sm">
+          <Box flexDirection="row" gap="md" alignItems="center">
+            <Svg
+              source={lookPreview(previewLook(office, ui.styles, panel.target, panel.item))}
+              alt="Xem trước bộ đồ"
+              width={96}
+              height={72}
+            />
+            <Box flexDirection="column" gap="xs" flexGrow={1}>
+              <Select
+                key="wardrobe-target"
+                label="Mặc cho"
+                options={targetOptions(office, ui.styles)}
+                value={panel.target}
+                onSelect={ui.pickTarget}
+              />
+              <Select
+                key="wardrobe-item"
+                label="Món đồ"
+                options={itemOptions()}
+                value={panel.item}
+                onSelect={ui.pickItem}
+              />
+            </Box>
+          </Box>
+          <Box flexDirection="row" gap="sm" alignItems="center">
+            <Button key="wardrobe-wear" variant="primary" onPress={ui.wear}>
+              Mặc
+            </Button>
+            <Text size="footnote" dimColor>
+              Đồ chọn cho cả loại agent được nhớ cho các phiên sau.
+            </Text>
+          </Box>
+        </Box>
+      )}
     </Box>
   )
 }

@@ -1,4 +1,4 @@
-import type { Outfit, Status } from '../types'
+import type { Look, Status } from '../types'
 
 // The mascot is drawn once, as a grid of palette keys, and both surfaces
 // read the same grid: desktop as SVG rects, the terminal as half-block cells.
@@ -16,7 +16,14 @@ export const PALETTE: Record<string, number> = {
   Y: 0xefa027, // gold
   W: 0xe6f1fb, // paper
   B: 0x378add, // blueprint ink
-  R: 0xe24b4a, // error mark
+  R: 0xe24b4a, // error mark, cap, scarf
+  r: 0xa32d2d, // cap brim, scarf fold
+  N: 0x185fa5, // beanie
+  n: 0x0c447c, // beanie band
+  M: 0xd4537e, // party hat, bow
+  m: 0x993556, // bow knot
+  S: 0x888780, // shades glint
+  K: 0x6b4e26, // coffee
 }
 
 export type Grid = string[][]
@@ -42,12 +49,13 @@ function rect(grid: Grid, x: number, y: number, w: number, h: number, key: strin
   }
 }
 
-// One frame of the mascot; `frame` alternates 0 and 1 for the two-step moves.
-export function sprite(status: Status, outfit: Outfit, frame: number): Grid {
+// One frame of the mascot in a look; `frame` alternates 0 and 1 for the
+// two-step moves. Desk items are the office's to draw, not the mascot's.
+export function sprite(status: Status, look: Look, frame: number): Grid {
   const grid = blank()
   rect(grid, 3, 3, 10, 6, 'C')
 
-  if (outfit === 'glasses') {
+  if (look.face === 'glasses') {
     rect(grid, 4, 4, 3, 2, 'L')
     rect(grid, 9, 4, 3, 2, 'L')
     rect(grid, 7, 4, 2, 1, 'G')
@@ -69,28 +77,70 @@ export function sprite(status: Status, outfit: Outfit, frame: number): Grid {
     rect(grid, 10, 4, 1, 1, 'E')
     rect(grid, 11, 5, 1, 1, 'E')
   } else {
-    const look = status === 'thinking' || status === 'idle' ? (frame === 0 ? -1 : 1) : 0
-    rect(grid, 5 + look, 4, 1, 2, 'E')
-    rect(grid, 10 + look, 4, 1, 2, 'E')
+    const glance = status === 'thinking' || status === 'idle' ? (frame === 0 ? -1 : 1) : 0
+    rect(grid, 5 + glance, 4, 1, 2, 'E')
+    rect(grid, 10 + glance, 4, 1, 2, 'E')
   }
 
-  if (outfit === 'explorer') {
-    rect(grid, 2, 2, 12, 1, 'H')
-    rect(grid, 4, 0, 8, 2, 'H')
-    rect(grid, 4, 1, 8, 1, 'h')
-  } else if (outfit === 'headphones') {
-    rect(grid, 4, 1, 8, 1, 'P')
-    rect(grid, 3, 2, 1, 1, 'P')
-    rect(grid, 12, 2, 1, 1, 'P')
-    rect(grid, 2, 3, 1, 3, 'P')
-    rect(grid, 13, 3, 1, 3, 'P')
-  } else if (outfit === 'manager') {
-    rect(grid, 4, 1, 8, 1, 'Y')
-    rect(grid, 4, 0, 1, 1, 'Y')
-    rect(grid, 7, 0, 2, 1, 'Y')
-    rect(grid, 11, 0, 1, 1, 'Y')
+  if (look.face === 'shades') {
+    rect(grid, 4, 4, 3, 2, 'E')
+    rect(grid, 9, 4, 3, 2, 'E')
+    rect(grid, 7, 4, 2, 1, 'E')
+    rect(grid, 4, 4, 1, 1, 'S')
+    rect(grid, 9, 4, 1, 1, 'S')
+  }
+
+  switch (look.head) {
+    case 'explorer':
+      rect(grid, 2, 2, 12, 1, 'H')
+      rect(grid, 4, 0, 8, 2, 'H')
+      rect(grid, 4, 1, 8, 1, 'h')
+      break
+    case 'headphones':
+      rect(grid, 4, 1, 8, 1, 'P')
+      rect(grid, 3, 2, 1, 1, 'P')
+      rect(grid, 12, 2, 1, 1, 'P')
+      rect(grid, 2, 3, 1, 3, 'P')
+      rect(grid, 13, 3, 1, 3, 'P')
+      break
+    case 'crown':
+      rect(grid, 4, 1, 8, 2, 'Y')
+      rect(grid, 4, 0, 1, 1, 'Y')
+      rect(grid, 7, 0, 2, 1, 'Y')
+      rect(grid, 11, 0, 1, 1, 'Y')
+      rect(grid, 7, 2, 2, 1, 'R')
+      break
+    case 'beanie':
+      rect(grid, 4, 1, 8, 2, 'N')
+      rect(grid, 3, 2, 10, 1, 'n')
+      rect(grid, 7, 0, 2, 1, 'W')
+      break
+    case 'cap':
+      rect(grid, 4, 1, 8, 2, 'R')
+      rect(grid, 11, 2, 4, 1, 'r')
+      rect(grid, 7, 1, 2, 1, 'W')
+      break
+    case 'party':
+      rect(grid, 7, 0, 2, 1, 'Y')
+      rect(grid, 6, 1, 4, 1, 'M')
+      rect(grid, 5, 2, 6, 1, 'M')
+      rect(grid, 7, 1, 1, 1, 'Y')
+      rect(grid, 8, 2, 1, 1, 'Y')
+      break
+    case 'bow':
+      rect(grid, 9, 1, 2, 2, 'M')
+      rect(grid, 12, 1, 2, 2, 'M')
+      rect(grid, 11, 1, 1, 2, 'm')
+      break
+  }
+
+  if (look.neck === 'tie') {
     rect(grid, 7, 6, 2, 1, 'Y')
     rect(grid, 7, 7, 2, 2, 'Y')
+  } else if (look.neck === 'scarf') {
+    rect(grid, 3, 7, 10, 1, 'R')
+    rect(grid, 4, 8, 2, 1, 'r')
+    rect(grid, 4, 8, 1, 2, 'R')
   }
 
   const armsUp = status === 'done'
@@ -103,9 +153,12 @@ export function sprite(status: Status, outfit: Outfit, frame: number): Grid {
   else rect(grid, 13, 6, 2, 1, 'C')
 
   if (status === 'delivering') rect(grid, 13, 5, 3, 3, 'W')
-  if (outfit === 'blueprint' && status !== 'delivering') {
+  else if (look.hand === 'blueprint') {
     rect(grid, 14, 4, 2, 4, 'W')
     rect(grid, 14, 5, 2, 1, 'B')
+  } else if (look.hand === 'coffee' && !handUp) {
+    rect(grid, 14, 5, 2, 3, 'W')
+    rect(grid, 14, 5, 2, 1, 'K')
   }
   if (status === 'error') rect(grid, 14, 0, 1, 2, 'R')
 

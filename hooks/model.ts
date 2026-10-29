@@ -1,4 +1,4 @@
-import type { Desk, Office, Outfit, Status } from '../types'
+import type { Desk, Look, Office, Status } from '../types'
 
 export const MANAGER_ID = 'main'
 
@@ -19,28 +19,22 @@ export function layoutTier(count: number): Tier {
   return 'grouped'
 }
 
-export function outfitFor(agentType: string): Outfit {
-  const type = agentType.toLowerCase()
-  if (type === 'explore') return 'explorer'
-  if (type === 'plan') return 'blueprint'
-  if (type.includes('review')) return 'glasses'
-  if (type === 'general-purpose' || type === 'claude') return 'headphones'
-  return 'none'
-}
-
-export function emptyOffice(now: number): Office {
+export function emptyOffice(now: number, managerLook: Look = { head: 'crown', neck: 'tie' }): Office {
   return {
     manager: {
       agentId: MANAGER_ID,
       name: 'claude',
       agentType: 'manager',
       model: '',
+      task: 'Điều phối công việc',
       slot: -1,
       group: 'manager',
-      outfit: 'manager',
+      look: managerLook,
       isResident: true,
+      toolCalls: 0,
       status: 'idle',
       since: now,
+      startedAt: now,
       lastEventAt: now,
       errorStreak: 0,
     },
@@ -65,6 +59,7 @@ export type SpawnFacts = {
   model: string
   isResident: boolean
   workflowRunId?: string
+  look: Look
 }
 
 export function spawn(office: Office, facts: SpawnFacts, now: number): Office {
@@ -83,12 +78,15 @@ export function spawn(office: Office, facts: SpawnFacts, now: number): Office {
     name: shortName(facts),
     agentType: facts.agentType,
     model: shortModel(facts.model),
+    task: facts.description ?? '',
     slot: freeSlot(office.desks),
     group,
-    outfit: outfitFor(facts.agentType),
+    look: facts.look,
     isResident: facts.isResident,
+    toolCalls: 0,
     status: 'arriving',
     since: now,
+    startedAt: now,
     lastEventAt: now,
     errorStreak: 0,
   }
@@ -144,7 +142,7 @@ export function toolStart(
     const count = desk.tool?.name === name ? desk.tool.count + 1 : 1
     const status = desk.status === 'error' ? 'error' : 'working'
 
-    return { ...setStatus(desk, status, now), tool: { name, arg, count } }
+    return { ...setStatus(desk, status, now), tool: { name, arg, count }, toolCalls: desk.toolCalls + 1 }
   })
 }
 
@@ -291,4 +289,17 @@ export function toolArg(input: Record<string, unknown>): string {
   }
 
   return ''
+}
+
+// Desks in the order a list shows them: those waiting for the person first,
+// then by their place on the floor.
+export function byAttention(desks: readonly Desk[]): Desk[] {
+  return [...desks].sort((a, b) => {
+    const wait = Number(b.status === 'waiting') - Number(a.status === 'waiting')
+    return wait !== 0 ? wait : a.slot - b.slot
+  })
+}
+
+export function waitingCount(office: Office): number {
+  return counts(office.desks).waiting + (office.manager.status === 'waiting' ? 1 : 0)
 }
